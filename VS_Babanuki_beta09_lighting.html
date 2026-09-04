@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>VS ババ抜き β09 LIGHTING STUDY</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08090c;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+#app{position:relative;width:100vw;height:100vh;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.top{position:absolute;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));z-index:30;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+.brand{font-size:clamp(18px,2vw,26px);font-weight:1000;letter-spacing:.02em;text-shadow:0 4px 18px rgba(0,0,0,.72)}
+.brand small{font-size:.5em;opacity:.58;margin-left:8px}
+.hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pill{padding:8px 11px;border-radius:999px;background:rgba(8,9,12,.70);border:1px solid rgba(255,255,255,.12);font-size:11px;font-weight:900;backdrop-filter:blur(12px)}
+.controls{position:absolute;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));z-index:31;display:flex;justify-content:center;gap:8px;pointer-events:none;flex-wrap:wrap}
+.btn{pointer-events:auto;border:1px solid rgba(255,255,255,.14);background:rgba(8,9,12,.84);color:#fff;border-radius:14px;padding:10px 14px;font-size:12px;font-weight:1000;backdrop-filter:blur(12px);box-shadow:0 8px 20px rgba(0,0,0,.25)}
+.btn.main{background:linear-gradient(180deg,#ff667a,#db2d49)}
+.btn.alt{background:linear-gradient(180deg,#5f8bff,#3554d9)}
+.toast{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) scale(.96);z-index:32;padding:11px 16px;border-radius:15px;background:rgba(8,9,12,.84);border:1px solid rgba(255,255,255,.13);font-weight:1000;backdrop-filter:blur(14px);opacity:0;pointer-events:none;transition:.22s ease;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,-54%) scale(1)}
+.help{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);z-index:30;padding:8px 12px;border-radius:999px;background:rgba(8,9,12,.54);border:1px solid rgba(255,255,255,.10);font-size:11px;font-weight:800;backdrop-filter:blur(10px)}
+.overlay{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(circle at 50% 35%,rgba(62,48,40,.88),rgba(6,7,10,.97) 72%)}
+.panel{width:min(760px,94vw);padding:30px 26px;border-radius:28px;background:rgba(13,14,18,.90);border:1px solid rgba(255,255,255,.14);box-shadow:0 30px 90px rgba(0,0,0,.55);text-align:center}
+.panel h1{margin:0;font-size:clamp(38px,6vw,66px);font-weight:1000}
+.sub{margin:8px 0 20px;opacity:.72;font-weight:800;line-height:1.6}
+.start{border:0;border-radius:16px;padding:14px 28px;background:linear-gradient(180deg,#ff667a,#db2d49);color:#fff;font-size:18px;font-weight:1000}
+.note{margin-top:12px;font-size:11px;opacity:.52;line-height:1.6}
+.portrait{display:none;position:absolute;inset:0;z-index:99;background:#0a0b0f;align-items:center;justify-content:center;text-align:center;padding:28px;font-weight:1000;line-height:1.7}
+@media (orientation:portrait){.portrait{display:flex}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="portrait">iPhoneを横向きにしてください。<br>VS ババ抜き β09 は横画面専用です。</div>
+
+  <div class="top">
+    <div class="brand">VS ババ抜き <small>β09 LIGHTING STUDY</small></div>
+    <div class="hud">
+      <div class="pill">β06ベース</div>
+      <div class="pill" id="lightPill">HOTEL</div>
+      <div class="pill" id="viewPill">席視点</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="help">背景・円卓を維持しつつ、照明だけを本気で調整する版</div>
+
+  <div class="controls">
+    <button class="btn main" id="seatBtn">席視点</button>
+    <button class="btn alt" id="drawBtn">引く視点</button>
+    <button class="btn" id="hideBtn">手札 ON / OFF</button>
+    <button class="btn" id="lightBtn">照明切替</button>
+    <button class="btn" id="rimBtn">リム光 ON / OFF</button>
+    <button class="btn" id="resetBtn">リセット</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h1>VS ババ抜き</h1>
+      <div class="sub">β06の構図を維持したまま、<br>ホテル個室の雰囲気をライティングで底上げするβ09。</div>
+      <button class="start" id="startBtn">β09を試す</button>
+      <div class="note">今回はライティングの比較が目的。<br>HOTEL / DRAMA / LUXURY の3種類を切り替えられます。</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const app=$('app'), toastEl=$('toast'), viewPill=$('viewPill'), lightPill=$('lightPill');
+let toastTimer=null;
+function toast(msg,ms=1100){toastEl.textContent=msg;toastEl.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('on'),ms);}
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d0f14);
+scene.fog=new THREE.Fog(0x0d0f14,13,35);
+
+const camera=new THREE.PerspectiveCamera(43, innerWidth/innerHeight, .1, 120);
+camera.position.set(0,5.0,10.6);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.04;
+renderer.physicallyCorrectLights=true;
+app.insertBefore(renderer.domElement, app.firstChild);
+
+function canvasTex(size, draw){
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  const x=c.getContext('2d'); draw(x,size);
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const wallFabricTex=canvasTex(1024,(x,s)=>{
+  const g=x.createLinearGradient(0,0,0,s);
+  g.addColorStop(0,'#352f2b'); g.addColorStop(.5,'#463d38'); g.addColorStop(1,'#2d2725');
+  x.fillStyle=g; x.fillRect(0,0,s,s);
+  for(let i=0;i<60000;i++){
+    const px=Math.random()*s, py=Math.random()*s;
+    const a=Math.random()*0.05;
+    x.fillStyle=`rgba(255,255,255,${a})`; x.fillRect(px,py,1,1);
+  }
+  for(let i=0;i<35000;i++){
+    const px=Math.random()*s, py=Math.random()*s;
+    const a=Math.random()*0.04;
+    x.fillStyle=`rgba(0,0,0,${a})`; x.fillRect(px,py,1,1);
+  }
+});
+wallFabricTex.repeat.set(2.6,1.4);
+
+const woodTex=canvasTex(1024,(x,s)=>{
+  const g=x.createLinearGradient(0,0,s,s);
+  g.addColorStop(0,'#6d4332'); g.addColorStop(.5,'#553223'); g.addColorStop(1,'#795140');
+  x.fillStyle=g; x.fillRect(0,0,s,s);
+  for(let i=0;i<2200;i++){
+    const y=Math.random()*s, h=Math.random()*4+1;
+    x.fillStyle=Math.random()>.5?'rgba(255,255,255,.035)':'rgba(0,0,0,.055)';
+    x.fillRect(0,y,s,h);
+  }
+  for(let i=0;i<160;i++){
+    x.strokeStyle=Math.random()>.5?'rgba(255,255,255,.02)':'rgba(0,0,0,.08)';
+    x.lineWidth=Math.random()*7+1;
+    x.beginPath();
+    x.moveTo(-20,Math.random()*s);
+    for(let k=0;k<6;k++){
+      x.bezierCurveTo(Math.random()*s,Math.random()*s,Math.random()*s,Math.random()*s,(k+1)/6*(s+80),Math.random()*s);
+    }
+    x.stroke();
+  }
+});
+woodTex.repeat.set(6,6);
+
+const carpetTex=canvasTex(1024,(x,s)=>{
+  const g=x.createRadialGradient(s/2,s/2,40,s/2,s/2,s/2);
+  g.addColorStop(0,'#1f252d'); g.addColorStop(1,'#101318');
+  x.fillStyle=g; x.fillRect(0,0,s,s);
+  for(let i=0;i<42000;i++){
+    const px=Math.random()*s, py=Math.random()*s;
+    const a=Math.random()*0.05;
+    x.fillStyle=`rgba(255,255,255,${a})`; x.fillRect(px,py,1,1);
+  }
+});
+carpetTex.repeat.set(1.2,1.2);
+
+const feltTex=canvasTex(1024,(x,s)=>{
+  x.fillStyle='#21463b'; x.fillRect(0,0,s,s);
+  for(let i=0;i<46000;i++){x.fillStyle=`rgba(255,255,255,${Math.random()*0.06})`; x.fillRect(Math.random()*s,Math.random()*s,1,1);}
+  for(let i=0;i<32000;i++){x.fillStyle=`rgba(0,0,0,${Math.random()*0.05})`; x.fillRect(Math.random()*s,Math.random()*s,1,1);}
+});
+feltTex.repeat.set(1.5,1.5);
+
+function cardTexture(face='A',suit='♠',back=false){
+  const c=document.createElement('canvas'); c.width=340; c.height=500; const x=c.getContext('2d');
+  if(back){
+    const g=x.createLinearGradient(0,0,340,500);
+    g.addColorStop(0,'#10294d'); g.addColorStop(.55,'#1f4c8b'); g.addColorStop(1,'#142847');
+    x.fillStyle=g; x.fillRect(0,0,340,500);
+    x.strokeStyle='#eadfce'; x.lineWidth=12; x.strokeRect(8,8,324,484);
+    x.strokeStyle='rgba(255,255,255,.26)'; x.lineWidth=3; x.strokeRect(28,28,284,444);
+    x.fillStyle='rgba(255,255,255,.64)';
+    x.textAlign='center'; x.textBaseline='middle'; x.font='bold 90px Arial'; x.fillText('VS',170,250);
+  }else{
+    x.fillStyle='#f7f4ec'; x.fillRect(0,0,340,500);
+    x.strokeStyle='#d8d3c8'; x.lineWidth=5; x.strokeRect(5,5,330,490);
+    const red=(suit==='♥'||suit==='♦'||face==='JOKER');
+    x.fillStyle=red?'#c51f31':'#161616';
+    x.font='bold 54px Arial'; x.textAlign='left'; x.textBaseline='alphabetic'; x.fillText(face,18,58);
+    x.font='52px Arial'; x.fillText(suit,20,110);
+    x.textAlign='center'; x.textBaseline='middle'; x.font='bold 130px Arial'; x.fillText(face==='JOKER'?'🃏':suit,170,270);
+  }
+  const t=new THREE.CanvasTexture(c); t.anisotropy=renderer.capabilities.getMaxAnisotropy(); return t;
+}
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(36,36),new THREE.MeshStandardMaterial({map:woodTex,roughness:.82,metalness:.03}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+const carpet=new THREE.Mesh(new THREE.CircleGeometry(7.0,64),new THREE.MeshStandardMaterial({map:carpetTex,roughness:.97}));
+carpet.rotation.x=-Math.PI/2; carpet.position.y=.012; carpet.receiveShadow=true; scene.add(carpet);
+function wall(w,h,x,y,z,ry){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshStandardMaterial({map:wallFabricTex,roughness:.95,metalness:0})); m.position.set(x,y,z); m.rotation.y=ry; scene.add(m); }
+wall(36,13,0,6.5,-12,0); wall(24,13,-12,6.5,0,Math.PI/2); wall(24,13,12,6.5,0,-Math.PI/2);
+
+const baseMat=new THREE.MeshStandardMaterial({color:0x2a1d18,roughness:.74});
+const mouldTopMat=new THREE.MeshStandardMaterial({color:0x5a3f2e,roughness:.58,metalness:.08});
+const stoneMat=new THREE.MeshStandardMaterial({color:0x55514e,roughness:.95});
+const backWainscot=new THREE.Mesh(new THREE.BoxGeometry(36,2.2,.18), baseMat); backWainscot.position.set(0,1.1,-11.91); scene.add(backWainscot);
+const leftWainscot=new THREE.Mesh(new THREE.BoxGeometry(.18,2.2,24), baseMat); leftWainscot.position.set(-11.91,1.1,0); scene.add(leftWainscot);
+const rightWainscot=leftWainscot.clone(); rightWainscot.position.x=11.91; scene.add(rightWainscot);
+const backMould=new THREE.Mesh(new THREE.BoxGeometry(36,.14,.22), mouldTopMat); backMould.position.set(0,2.22,-11.9); scene.add(backMould);
+const leftMould=new THREE.Mesh(new THREE.BoxGeometry(.22,.14,24), mouldTopMat); leftMould.position.set(-11.9,2.22,0); scene.add(leftMould);
+const rightMould=leftMould.clone(); rightMould.position.x=11.9; scene.add(rightMould);
+const baseboardBack=new THREE.Mesh(new THREE.BoxGeometry(36,.22,.22), stoneMat); baseboardBack.position.set(0,.11,-11.9); scene.add(baseboardBack);
+const baseboardLeft=new THREE.Mesh(new THREE.BoxGeometry(.22,.22,24), stoneMat); baseboardLeft.position.set(-11.9,.11,0); scene.add(baseboardLeft);
+const baseboardRight=baseboardLeft.clone(); baseboardRight.position.x=11.9; scene.add(baseboardRight);
+function framedPanel(x,z,ry){
+  const g=new THREE.Group();
+  const frameMat=new THREE.MeshStandardMaterial({color:0x6d513b,roughness:.42,metalness:.15});
+  const innerMat=new THREE.MeshStandardMaterial({color:0x786d63,roughness:.80});
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(2.2,3.1,.09), frameMat);
+  const inner=new THREE.Mesh(new THREE.BoxGeometry(1.92,2.82,.05), innerMat); inner.position.z=.03;
+  g.add(frame,inner); g.position.set(x,5.0,z); g.rotation.y=ry; scene.add(g);
+}
+framedPanel(-4.6,-11.85,0); framedPanel(4.6,-11.85,0);
+const ceiling=new THREE.Mesh(new THREE.PlaneGeometry(36,36),new THREE.MeshStandardMaterial({color:0x15161b,roughness:.95}));
+ceiling.rotation.x=Math.PI/2; ceiling.position.y=13; scene.add(ceiling);
+
+const tableGroup=new THREE.Group(); scene.add(tableGroup);
+const shadowDisk=new THREE.Mesh(new THREE.CircleGeometry(5.35,72),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.20}));
+shadowDisk.rotation.x=-Math.PI/2; shadowDisk.position.y=.01; scene.add(shadowDisk);
+const topMat=new THREE.MeshPhysicalMaterial({map:woodTex,roughness:.50,metalness:.08,clearcoat:.18,clearcoatRoughness:.5});
+const rimMat=new THREE.MeshPhysicalMaterial({color:0x8b6b45,roughness:.24,metalness:.92,clearcoat:.14});
+const darkWoodMat=new THREE.MeshPhysicalMaterial({color:0x3b241a,roughness:.72,metalness:.03});
+const feltMat=new THREE.MeshStandardMaterial({map:feltTex,roughness:.97});
+const tableTop=new THREE.Mesh(new THREE.CylinderGeometry(4.75,4.86,.42,80), topMat); tableTop.position.y=2.04; tableTop.castShadow=true; tableTop.receiveShadow=true; tableGroup.add(tableTop);
+const tableUnder=new THREE.Mesh(new THREE.CylinderGeometry(4.98,5.1,.20,80), darkWoodMat); tableUnder.position.y=1.76; tableUnder.castShadow=true; tableGroup.add(tableUnder);
+const felt=new THREE.Mesh(new THREE.CylinderGeometry(4.15,4.15,.06,80), feltMat); felt.position.y=2.27; felt.receiveShadow=true; tableGroup.add(felt);
+const brassRing=new THREE.Mesh(new THREE.TorusGeometry(4.20,.12,24,120), rimMat); brassRing.rotation.x=Math.PI/2; brassRing.position.y=2.31; tableGroup.add(brassRing);
+const pedestalTop=new THREE.Mesh(new THREE.CylinderGeometry(.62,.78,.78,30), topMat); pedestalTop.position.y=1.42; pedestalTop.castShadow=true; tableGroup.add(pedestalTop);
+const pedestalMid=new THREE.Mesh(new THREE.CylinderGeometry(.36,.48,1.42,26), darkWoodMat); pedestalMid.position.y=.70; pedestalMid.castShadow=true; tableGroup.add(pedestalMid);
+const pedestalFoot=new THREE.Mesh(new THREE.CylinderGeometry(1.85,2.05,.14,36), darkWoodMat); pedestalFoot.position.y=.08; pedestalFoot.castShadow=true; tableGroup.add(pedestalFoot);
+
+const sideMat=new THREE.MeshStandardMaterial({color:0xe5dfd2,roughness:.82});
+const cardGeo=new THREE.BoxGeometry(.86,.055,1.24);
+function cardMesh(face='A',suit='♠',faceUp=true){
+  const frontMat=new THREE.MeshPhysicalMaterial({map:cardTexture(face,suit,false),roughness:.72,clearcoat:.05});
+  const backMat=new THREE.MeshPhysicalMaterial({map:cardTexture(face,suit,true),roughness:.62,clearcoat:.05});
+  const m=new THREE.Mesh(cardGeo,[sideMat,sideMat,faceUp?frontMat:backMat,backMat,sideMat,sideMat]);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+const playerHand=new THREE.Group(); scene.add(playerHand);
+const opponentHand=new THREE.Group(); scene.add(opponentHand);
+const centerCards=new THREE.Group(); scene.add(centerCards);
+(function populate(){
+  const p=[['4','♠'],['10','♥'],['Q','♦'],['JOKER','★'],['7','♣'],['A','♥']];
+  p.forEach((d,i)=>{ const t=i/(p.length-1)-.5; const c=cardMesh(d[0],d[1],true); c.position.set(t*4.15,2.92,4.7-Math.abs(t)*.34); c.rotation.set(-.16,-t*.50,0); playerHand.add(c); });
+  for(let i=0;i<6;i++){ const t=i/5-.5; const c=cardMesh('A','♠',false); c.position.set(t*3.7,2.88,-4.42+Math.abs(t)*.28); c.rotation.set(-.14,Math.PI+t*.42,0); opponentHand.add(c); }
+  const tablePairs=[['K','♠'],['K','♣'],['5','♥'],['5','♦'],['9','♠'],['9','♥']];
+  tablePairs.forEach((d,i)=>{ const c=cardMesh(d[0],d[1],true); c.position.set(((i%3)-1)*.76,2.33+i*.008,Math.floor(i/3)*.56-.3); c.rotation.set(0,(-.34+i*.17),0); centerCards.add(c); });
+})();
+
+const lights = {};
+lights.ambient = new THREE.AmbientLight(0xffffff,0.08); scene.add(lights.ambient);
+lights.hemi = new THREE.HemisphereLight(0xc8d7ff,0x1e1510,0.28); scene.add(lights.hemi);
+lights.pendantGlow = new THREE.PointLight(0xffd8ae, 42, 28, 2); lights.pendantGlow.position.set(0,9.2,0); scene.add(lights.pendantGlow);
+lights.mainSpot = new THREE.SpotLight(0xffd7ab, 140, 46, Math.PI/4.7, 0.38, 1.25); lights.mainSpot.position.set(0,10.6,0.6); lights.mainSpot.target.position.set(0,2.22,0); lights.mainSpot.castShadow=true; lights.mainSpot.shadow.mapSize.set(2048,2048); lights.mainSpot.shadow.bias=-0.00012; scene.add(lights.mainSpot); scene.add(lights.mainSpot.target);
+lights.fillL = new THREE.PointLight(0x7f9cff, 14, 20, 2); lights.fillL.position.set(-7.2,4.6,4.8); scene.add(lights.fillL);
+lights.fillR = new THREE.PointLight(0xff9a64, 10, 18, 2); lights.fillR.position.set(6.8,4.2,-4.5); scene.add(lights.fillR);
+lights.backAccent = new THREE.SpotLight(0xffb272, 28, 22, Math.PI/5.0, .5, 1.5); lights.backAccent.position.set(0,5.8,-10.5); lights.backAccent.target.position.set(0,2.7,-8.5); scene.add(lights.backAccent); scene.add(lights.backAccent.target);
+lights.rimL = new THREE.PointLight(0x8cb4ff, 7, 18, 2); lights.rimL.position.set(-5.8,3.2,-3.2); scene.add(lights.rimL);
+lights.rimR = new THREE.PointLight(0xffb37d, 7, 18, 2); lights.rimR.position.set(5.8,3.0,3.0); scene.add(lights.rimR);
+function sconce(x,z,ry){
+  const g=new THREE.Group();
+  const metal=new THREE.MeshPhysicalMaterial({color:0x2c2d34,roughness:.42,metalness:.86});
+  const glowM=new THREE.MeshPhysicalMaterial({color:0xffefdc,roughness:.18,emissive:0xffc892,emissiveIntensity:.75,side:THREE.DoubleSide});
+  const base=new THREE.Mesh(new THREE.BoxGeometry(.14,.34,.08), metal);
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.3,12), metal); arm.rotation.z=Math.PI/2; arm.position.x=.12;
+  const shade=new THREE.Mesh(new THREE.CylinderGeometry(.11,.16,.34,18,1,true), glowM); shade.rotation.z=Math.PI/2; shade.position.x=.32;
+  g.add(base,arm,shade); g.position.set(x,4.8,z); g.rotation.y=ry; scene.add(g);
+  const p=new THREE.PointLight(0xffbf84, 12, 10, 2); p.position.set(x,4.78,z); scene.add(p);
+}
+sconce(-9.8,-8.2,Math.PI/2); sconce(9.8,-8.2,-Math.PI/2);
+const pendantOuter=new THREE.Mesh(new THREE.CylinderGeometry(1.35,.98,1.08,32,1,true),new THREE.MeshPhysicalMaterial({color:0x0f1115,roughness:.46,metalness:.45,side:THREE.DoubleSide})); pendantOuter.position.set(0,9.7,0); scene.add(pendantOuter);
+const pendantInner=new THREE.Mesh(new THREE.CylinderGeometry(1.08,.80,.92,32,1,true),new THREE.MeshPhysicalMaterial({color:0xffe2bb,roughness:.22,emissive:0xffcf95,emissiveIntensity:.42,side:THREE.DoubleSide})); pendantInner.position.set(0,9.67,0); scene.add(pendantInner);
+const pendantStem=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,2.1,14),new THREE.MeshPhysicalMaterial({color:0x24262d,roughness:.45,metalness:.86})); pendantStem.position.set(0,11.1,0); scene.add(pendantStem);
+
+let rimOn=true;
+let lightMode=0;
+const lightNames=['HOTEL','DRAMA','LUXURY'];
+function applyLightingMode(mode){
+  lightMode = mode;
+  lightPill.textContent = lightNames[mode];
+  if(mode===0){renderer.toneMappingExposure=1.04;lights.ambient.intensity=.08;lights.hemi.intensity=.28;lights.pendantGlow.intensity=42;lights.mainSpot.intensity=140;lights.mainSpot.color.set(0xffd7ab);lights.fillL.intensity=14;lights.fillR.intensity=10;lights.backAccent.intensity=28;topMat.color.set(0xffffff);rimMat.color.set(0x8b6b45);}
+  if(mode===1){renderer.toneMappingExposure=.92;lights.ambient.intensity=.04;lights.hemi.intensity=.18;lights.pendantGlow.intensity=24;lights.mainSpot.intensity=170;lights.mainSpot.color.set(0xffc98a);lights.fillL.intensity=7;lights.fillR.intensity=5;lights.backAccent.intensity=18;topMat.color.set(0xf0ebe0);rimMat.color.set(0x7d5d39);}
+  if(mode===2){renderer.toneMappingExposure=1.10;lights.ambient.intensity=.10;lights.hemi.intensity=.34;lights.pendantGlow.intensity=55;lights.mainSpot.intensity=155;lights.mainSpot.color.set(0xffddb8);lights.fillL.intensity=18;lights.fillR.intensity=14;lights.backAccent.intensity=36;topMat.color.set(0xffffff);rimMat.color.set(0xa8824b);}
+  setRim(rimOn,false);
+}
+function setRim(v,showToast=true){ rimOn=v; lights.rimL.intensity=v?(lightMode===2?10:7):0; lights.rimR.intensity=v?(lightMode===2?10:7):0; if(showToast)toast(v?'リム光 ON':'リム光 OFF',900); }
+let handsVisible=true;
+function setHandsVisible(v){ handsVisible=v; playerHand.visible=v; opponentHand.visible=v; centerCards.visible=v; toast(v?'手札を表示':'手札を非表示',900); }
+const seatPos=new THREE.Vector3(0,5.0,10.6),seatLook=new THREE.Vector3(0,2.30,0.95),drawPos=new THREE.Vector3(0,4.35,5.25),drawLook=new THREE.Vector3(0,2.95,-4.05);
+let targetPos=seatPos.clone(),targetLook=seatLook.clone(),currentLook=seatLook.clone(),currentMode='seat';
+function setView(mode){ currentMode=mode; if(mode==='seat'){targetPos.copy(seatPos);targetLook.copy(seatLook);viewPill.textContent='席視点';toast('席に座っている視点',950);}else{targetPos.copy(drawPos);targetLook.copy(drawLook);viewPill.textContent='引く視点';toast('相手から引く時の視点',950);} }
+function resetScene(){ setView('seat');setHandsVisible(true);applyLightingMode(0);setRim(true,false);toast('リセットしました',900); }
+function animate(){requestAnimationFrame(animate);camera.position.lerp(targetPos,.055);currentLook.lerp(targetLook,.06);camera.lookAt(currentLook);const time=performance.now()*.001;playerHand.children.forEach((c,i)=>{c.position.y=2.92+Math.sin(time*1.6+i*.4)*.008;});opponentHand.children.forEach((c,i)=>{c.position.y=2.88+Math.sin(time*1.3+i*.3)*.006;});renderer.render(scene,camera);}
+animate();
+$('startBtn').onclick=()=>{$('overlay').style.display='none';toast('まず HOTEL / DRAMA / LUXURY を見比べてみて',1400);};
+$('seatBtn').onclick=()=>setView('seat');
+$('drawBtn').onclick=()=>setView('draw');
+$('hideBtn').onclick=()=>setHandsVisible(!handsVisible);
+$('lightBtn').onclick=()=>{const next=(lightMode+1)%3;applyLightingMode(next);toast(`照明: ${lightNames[next]}`,1000);};
+$('rimBtn').onclick=()=>setRim(!rimOn);
+$('resetBtn').onclick=()=>resetScene();
+applyLightingMode(0);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+})();
+</script>
+</body>
+</html>
