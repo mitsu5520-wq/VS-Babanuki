@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>VS ババ抜き β04</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#06070a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+#app{position:relative;width:100vw;height:100vh;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.top{position:absolute;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));z-index:20;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+.brand{font-weight:1000;font-size:clamp(18px,2vw,26px);text-shadow:0 3px 12px rgba(0,0,0,.6)}
+.brand small{font-size:.5em;opacity:.58;margin-left:8px}
+.hud{display:flex;gap:8px}
+.pill{padding:8px 11px;border-radius:999px;background:rgba(9,10,14,.72);border:1px solid rgba(255,255,255,.12);font-size:11px;font-weight:900;backdrop-filter:blur(12px)}
+.controls{position:absolute;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));z-index:21;display:flex;justify-content:center;gap:8px;pointer-events:none}
+.btn{pointer-events:auto;border:1px solid rgba(255,255,255,.13);background:rgba(9,10,14,.84);color:#fff;border-radius:14px;padding:10px 14px;font-size:12px;font-weight:1000;backdrop-filter:blur(12px);box-shadow:0 8px 20px rgba(0,0,0,.25)}
+.btn.main{background:linear-gradient(180deg,#ff667a,#db2d49)}
+.btn:disabled{opacity:.35}
+.toast,.prompt{position:absolute;left:50%;transform:translateX(-50%);z-index:22;padding:11px 16px;border-radius:15px;background:rgba(9,10,14,.84);border:1px solid rgba(255,255,255,.13);font-weight:1000;backdrop-filter:blur(14px);opacity:0;pointer-events:none;transition:.22s ease;white-space:nowrap}
+.toast{top:47%}.prompt{top:28%}.toast.on,.prompt.on{opacity:1}
+.overlay{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(circle at 50% 35%,rgba(68,51,38,.88),rgba(6,7,10,.97) 70%)}
+.panel{width:min(760px,94vw);padding:30px 26px;border-radius:28px;background:rgba(13,14,18,.9);border:1px solid rgba(255,255,255,.14);box-shadow:0 30px 90px rgba(0,0,0,.55);text-align:center}
+.panel h1{margin:0;font-size:clamp(38px,6vw,66px);font-weight:1000}
+.sub{margin:8px 0 20px;opacity:.72;font-weight:800;line-height:1.6}
+.start{border:0;border-radius:16px;padding:14px 28px;background:linear-gradient(180deg,#ff667a,#db2d49);color:#fff;font-size:18px;font-weight:1000}
+.note{margin-top:12px;font-size:11px;opacity:.52;line-height:1.6}
+.portrait{display:none;position:absolute;inset:0;z-index:99;background:#0a0b0f;align-items:center;justify-content:center;text-align:center;padding:28px;font-weight:1000;line-height:1.7}
+@media (orientation:portrait){.portrait{display:flex}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="portrait">iPhoneを横向きにしてください。<br>VS ババ抜き β04 は横画面専用です。</div>
+  <div class="top">
+    <div class="brand">VS ババ抜き <small>β04 TENSE TABLE</small></div>
+    <div class="hud">
+      <div class="pill" id="turn">準備中</div>
+      <div class="pill" id="count">あなた 0 / 相手 0</div>
+    </div>
+  </div>
+  <div class="prompt" id="prompt">相手の手札から、引きたいカードを1枚選ぶ</div>
+  <div class="toast" id="toast"></div>
+  <div class="controls">
+    <button class="btn main" id="dealBtn">カードを配る</button>
+    <button class="btn" id="drawBtn" disabled>相手から引く</button>
+    <button class="btn" id="mixBtn" disabled>手札を混ぜる</button>
+    <button class="btn" id="resetBtn">リセット</button>
+  </div>
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h1>VS ババ抜き</h1>
+      <div class="sub">上質で静かな空間。<br>テーブル越しに、相手の手札から1枚引く緊張感。</div>
+      <button class="start" id="startBtn">β04を試す</button>
+      <div class="note">1台で雰囲気と操作を確認する試作版です。<br>近距離通信・広告はまだ未実装です。</div>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const app=$('app'), turnEl=$('turn'), countEl=$('count'), toastEl=$('toast'), promptEl=$('prompt');
+let toastTimer=null;
+function toast(msg, ms=900){ toastEl.textContent=msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('on'), ms); }
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x111318);
+scene.fog=new THREE.Fog(0x111318, 10, 26);
+
+const camera=new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0,5.7,10.2);
+
+const renderer=new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.08;
+app.insertBefore(renderer.domElement, app.firstChild);
+
+const hemi=new THREE.HemisphereLight(0xb7d1ff, 0x2b1c15, 0.55); scene.add(hemi);
+const key=new THREE.SpotLight(0xffd2a8, 3.1, 40, Math.PI/5, .45, 1.2);
+key.position.set(0,10,0.8); key.castShadow=true; key.shadow.mapSize.set(1024,1024); scene.add(key);
+const rimL=new THREE.PointLight(0x78a7ff, .45, 20); rimL.position.set(-6,3.8,5); scene.add(rimL);
+const rimR=new THREE.PointLight(0xff8f63, .28, 15); rimR.position.set(6,3.2,-4); scene.add(rimR);
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(28,28), new THREE.MeshStandardMaterial({color:0x2e211d, roughness:.92}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+function addWall(w,h,x,y,z,ry,color){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshStandardMaterial({color, roughness:.95})); m.position.set(x,y,z); m.rotation.y=ry; scene.add(m); }
+addWall(28,12,0,6,-10,0,0x2a2c33); addWall(20,12,-14,6,0,Math.PI/2,0x1f2127); addWall(20,12,14,6,0,-Math.PI/2,0x1f2127);
+for(let i=-4;i<=4;i+=2){ const p=new THREE.Mesh(new THREE.BoxGeometry(1.2,2,.1), new THREE.MeshStandardMaterial({color:0x3b3431, roughness:.88})); p.position.set(i,4.2,-9.85); scene.add(p); }
+const pendantTop=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,1.8,12), new THREE.MeshStandardMaterial({color:0x191b21, roughness:.8}));
+pendantTop.position.set(0,10.5,0); scene.add(pendantTop);
+const pendantShade=new THREE.Mesh(new THREE.CylinderGeometry(1.2,.8,1.2,24,1,true), new THREE.MeshStandardMaterial({color:0x0f1014, roughness:.7, side:THREE.DoubleSide}));
+pendantShade.position.set(0,9.1,0); scene.add(pendantShade);
+
+const tableGroup=new THREE.Group(); scene.add(tableGroup);
+const tableTop=new THREE.Mesh(new THREE.CylinderGeometry(4.55,4.55,.38,52), new THREE.MeshStandardMaterial({color:0x4f2b1c, roughness:.75}));
+tableTop.position.y=2.0; tableTop.castShadow=true; tableTop.receiveShadow=true; tableGroup.add(tableTop);
+const felt=new THREE.Mesh(new THREE.CylinderGeometry(4.0,4.0,.06,52), new THREE.MeshStandardMaterial({color:0x243c34, roughness:.82}));
+felt.position.y=2.23; felt.receiveShadow=true; tableGroup.add(felt);
+const edgeRing=new THREE.Mesh(new THREE.TorusGeometry(4.15,.16,18,80), new THREE.MeshStandardMaterial({color:0x79533a, roughness:.55}));
+edgeRing.rotation.x=Math.PI/2; edgeRing.position.y=2.27; tableGroup.add(edgeRing);
+const base=new THREE.Mesh(new THREE.CylinderGeometry(.62,.85,1.85,22), new THREE.MeshStandardMaterial({color:0x382117, roughness:.8}));
+base.position.y=1.0; base.castShadow=true; tableGroup.add(base);
+const foot=new THREE.Mesh(new THREE.CylinderGeometry(1.55,1.8,.12,28), new THREE.MeshStandardMaterial({color:0x291913, roughness:.9}));
+foot.position.y=.08; foot.castShadow=true; tableGroup.add(foot);
+
+function chair(x,z,rot){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:0x261d19, roughness:.92});
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(2,.24,1.65), mat);
+  seat.position.y=1.18;
+  const back=new THREE.Mesh(new THREE.BoxGeometry(2,1.9,.2), mat);
+  back.position.set(0,2.0,-.72);
+  g.add(seat,back); g.position.set(x,0,z); g.rotation.y=rot; scene.add(g);
+}
+chair(0,6.25,0); chair(0,-6.25,Math.PI);
+
+const centerShadow=new THREE.Mesh(new THREE.CircleGeometry(1.7,32), new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.16}));
+centerShadow.rotation.x=-Math.PI/2; centerShadow.position.set(0,2.245,0); scene.add(centerShadow);
+
+const SUITS=['♠','♥','♦','♣'];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+function uid(){ return Math.random().toString(36).slice(2)+Date.now(); }
+function shuffle(arr){ arr=[...arr]; for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+function buildDeck(){ const deck=[]; for(const suit of SUITS) for(const rank of RANKS) deck.push({id:uid(), rank, suit, joker:false, pop:false}); deck.push({id:uid(), rank:'JOKER', suit:'★', joker:true, pop:false}); return shuffle(deck); }
+
+function makeTexture(card, back=false){
+  const c=document.createElement('canvas'); c.width=300; c.height=420; const x=c.getContext('2d');
+  if(back){
+    const g=x.createLinearGradient(0,0,300,420); g.addColorStop(0,'#13244a'); g.addColorStop(.55,'#254f8a'); g.addColorStop(1,'#162749');
+    x.fillStyle=g; x.fillRect(0,0,300,420);
+    x.strokeStyle='#ece1cf'; x.lineWidth=12; x.strokeRect(8,8,284,404);
+    x.strokeStyle='rgba(255,255,255,.28)'; x.lineWidth=3; x.strokeRect(28,28,244,364);
+    x.fillStyle='rgba(255,255,255,.68)'; x.textAlign='center'; x.textBaseline='middle'; x.font='bold 78px Arial'; x.fillText('VS',150,210);
+  }else{
+    x.fillStyle='#f7f4ec'; x.fillRect(0,0,300,420);
+    x.strokeStyle='#d8d3c8'; x.lineWidth=4; x.strokeRect(4,4,292,412);
+    const red = card.suit==='♥' || card.suit==='♦' || card.joker;
+    x.fillStyle = red ? '#c51f31' : '#151515';
+    x.textAlign='left'; x.textBaseline='alphabetic';
+    x.font='bold 48px Arial'; x.fillText(card.joker ? 'JOKER' : card.rank, 18, 54);
+    x.font='48px Arial'; x.fillText(card.joker ? '★' : card.suit, 18, 104);
+    x.textAlign='center'; x.textBaseline='middle'; x.font='bold 112px Arial'; x.fillText(card.joker ? '🃏' : card.suit, 150, 225);
+  }
+  const tex=new THREE.CanvasTexture(c); tex.anisotropy=renderer.capabilities.getMaxAnisotropy(); return tex;
+}
+const backTexture = makeTexture({}, true);
+const cardGeo = new THREE.BoxGeometry(.82,.055,1.18);
+function createCardMesh(card, faceUp){
+  const sideMat = new THREE.MeshStandardMaterial({color:0xe8e2d6, roughness:.85});
+  const frontMat = new THREE.MeshStandardMaterial({map: faceUp ? makeTexture(card,false) : backTexture, roughness:.62});
+  const backMat = new THREE.MeshStandardMaterial({map: backTexture, roughness:.62});
+  const mesh=new THREE.Mesh(cardGeo,[sideMat,sideMat,frontMat,backMat,sideMat,sideMat]);
+  mesh.castShadow=true; mesh.receiveShadow=true; mesh.userData={card}; return mesh;
+}
+
+let me=[], opp=[], discards=[];
+let meMeshes=[], oppMeshes=[], discardMeshes=[];
+let drawMode=false;
+let dragMesh=null, dragStartX=0, dragOriginalX=0;
+
+function clearMeshes(arr){ arr.forEach(m=>scene.remove(m)); arr.length=0; }
+function layoutHand(cards, meshes, isPlayer){
+  clearMeshes(meshes);
+  const n=cards.length; if(!n) return;
+  const span=Math.min(5.8, Math.max(2.4, n*.36));
+  cards.forEach((card,i)=>{
+    const mesh=createCardMesh(card, isPlayer);
+    const t=n===1 ? .5 : i/(n-1);
+    const x=(t-.5)*span;
+    const curve=Math.abs(t-.5)*2;
+    const lift=card.pop ? .45 : 0;
+    const y=2.95 + lift - curve*.08;
+    const z=isPlayer ? 4.25 - curve*.34 : -4.08 + curve*.28;
+    const ry=isPlayer ? (t-.5)*-.48 : Math.PI + (t-.5)*.42;
+    mesh.position.set(x,y,z); mesh.rotation.set(-.16, ry, 0);
+    mesh.userData.index=i; mesh.userData.isPlayer=isPlayer;
+    scene.add(mesh); meshes.push(mesh);
+  });
+  countEl.textContent=`あなた ${me.length} / 相手 ${opp.length}`;
+}
+function addDiscardMesh(card, index){
+  const m=createCardMesh(card, true);
+  m.position.set((((index*43)%100)-50)/38, 2.31 + index*.007, (((index*67)%100)-50)/62);
+  m.rotation.set(0, ((((index*37)%100)-50)/180), 0);
+  scene.add(m); discardMeshes.push(m);
+}
+function renderDiscards(){ clearMeshes(discardMeshes); discards.slice(-26).forEach((card,i)=>addDiscardMesh(card,i)); }
+function renderAll(){ layoutHand(me, meMeshes, true); layoutHand(opp, oppMeshes, false); renderDiscards(); }
+function removePairs(hand, label){
+  const groups={}; hand.forEach(c=>{ if(!c.joker){ (groups[c.rank] ||= []).push(c); }});
+  const ids=new Set(), removed=[];
+  Object.values(groups).forEach(arr=>{ const takeCount=Math.floor(arr.length/2)*2; for(let i=0;i<takeCount;i++){ ids.add(arr[i].id); removed.push(arr[i]); } });
+  if(!removed.length) return hand;
+  removed.forEach((c,i)=>setTimeout(()=>{ discards.push(c); renderDiscards(); }, i*90));
+  setTimeout(()=>toast(`${label}：${removed.length/2}ペアをテーブルへ`, 1100), 120);
+  return hand.filter(c=>!ids.has(c.id));
+}
+
+const homePos=new THREE.Vector3(0,5.7,10.2), homeLook=new THREE.Vector3(0,2.15,0);
+const drawPos=new THREE.Vector3(0,4.5,5.75), drawLook=new THREE.Vector3(0,2.9,-3.9);
+let targetPos=homePos.clone(), targetLook=homeLook.clone(), currentLook=homeLook.clone();
+function setView(draw){ targetPos.copy(draw ? drawPos : homePos); targetLook.copy(draw ? drawLook : homeLook); }
+function animate(){ requestAnimationFrame(animate); camera.position.lerp(targetPos,.08); currentLook.lerp(targetLook,.08); camera.lookAt(currentLook); renderer.render(scene,camera); }
+animate();
+
+const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
+function setPointer(ev){ const rect=renderer.domElement.getBoundingClientRect(); pointer.x=((ev.clientX-rect.left)/rect.width)*2-1; pointer.y=-((ev.clientY-rect.top)/rect.height)*2+1; raycaster.setFromCamera(pointer,camera); }
+renderer.domElement.addEventListener('pointerdown', ev=>{
+  setPointer(ev);
+  if(drawMode){
+    const hit=raycaster.intersectObjects(oppMeshes,false)[0];
+    if(hit){ takeOpponent(hit.object.userData.index); return; }
+  }
+  const hit=raycaster.intersectObjects(meMeshes,false)[0];
+  if(hit){ dragMesh=hit.object; dragStartX=ev.clientX; dragOriginalX=dragMesh.position.x; renderer.domElement.setPointerCapture(ev.pointerId); }
+});
+renderer.domElement.addEventListener('pointermove', ev=>{ if(!dragMesh) return; dragMesh.position.x += (ev.clientX-dragStartX)*.003; dragStartX=ev.clientX; });
+renderer.domElement.addEventListener('pointerup', ev=>{
+  if(!dragMesh) return;
+  const cid=dragMesh.userData.card.id;
+  const from=me.findIndex(c=>c.id===cid);
+  const moved=Math.abs(dragMesh.position.x-dragOriginalX) > .13;
+  if(!moved){ me[from].pop=!me[from].pop; }
+  else{
+    const clamped=Math.max(-3, Math.min(3, dragMesh.position.x));
+    const ratio=(clamped+3)/6;
+    const to=Math.min(me.length-1, Math.max(0, Math.floor(ratio*me.length)));
+    const [card]=me.splice(from,1); me.splice(to,0,card);
+  }
+  dragMesh=null; renderAll();
+});
+
+async function deal(){
+  reset(false); $('dealBtn').disabled=true; turnEl.textContent='配札中';
+  const deck=buildDeck(); let side=0;
+  for(let i=0;i<deck.length;i++){ (side===0 ? me : opp).push(deck[i]); side=1-side; if(i%4===0) renderAll(); await new Promise(r=>setTimeout(r,30)); }
+  renderAll(); await new Promise(r=>setTimeout(r,300));
+  me=removePairs(me,'あなた'); opp=removePairs(opp,'相手');
+  setTimeout(()=>{ renderAll(); $('drawBtn').disabled=false; $('mixBtn').disabled=false; turnEl.textContent='あなたの番'; toast('ゲームスタート！', 1200); }, 950);
+}
+function beginDraw(){ if(!opp.length) return; drawMode=true; setView(true); $('drawBtn').disabled=true; $('mixBtn').disabled=true; turnEl.textContent='相手から1枚引く'; promptEl.classList.add('on'); }
+function endDrawView(){ drawMode=false; setView(false); promptEl.classList.remove('on'); }
+function takeOpponent(index){
+  if(!drawMode || index<0 || index>=opp.length) return;
+  const card=opp.splice(index,1)[0];
+  endDrawView(); me.push(card); renderAll(); toast(`${card.joker ? 'JOKER' : card.rank + card.suit} を引いた`, 800);
+  setTimeout(()=>{
+    me=removePairs(me,'あなた'); renderAll();
+    if(checkEnd()) return;
+    setTimeout(()=>{
+      if(!me.length) return;
+      const i=Math.floor(Math.random()*me.length), taken=me.splice(i,1)[0];
+      opp.push(taken); opp=removePairs(opp,'相手'); renderAll(); toast('相手があなたの手札から1枚引いた', 900);
+      setTimeout(()=>{ if(!checkEnd()){ $('drawBtn').disabled=false; $('mixBtn').disabled=false; turnEl.textContent='あなたの番'; } }, 820);
+    }, 900);
+  }, 680);
+}
+function checkEnd(){
+  if(me.length===0){ toast('あなたのあがり！', 1800); turnEl.textContent='あなたのあがり'; return true; }
+  if(opp.length===0){ toast('相手のあがり！', 1800); turnEl.textContent='相手のあがり'; return true; }
+  if(me.length + opp.length === 1){ const loser=me.length ? 'あなた' : '相手'; toast(`${loser}がJOKER！ 負け！`, 2200); turnEl.textContent='ゲーム終了'; return true; }
+  return false;
+}
+function reset(show=true){
+  me=[]; opp=[]; discards=[]; drawMode=false; clearMeshes(meMeshes); clearMeshes(oppMeshes); clearMeshes(discardMeshes); setView(false);
+  promptEl.classList.remove('on'); $('dealBtn').disabled=false; $('drawBtn').disabled=true; $('mixBtn').disabled=true;
+  turnEl.textContent='準備中'; countEl.textContent='あなた 0 / 相手 0'; if(show) toast('リセットしました', 650);
+}
+$('startBtn').onclick=()=>{ $('overlay').style.display='none'; toast('まず「カードを配る」を押してください', 1100); };
+$('dealBtn').onclick=deal;
+$('drawBtn').onclick=beginDraw;
+$('mixBtn').onclick=()=>{ me=shuffle(me).map(c=>({...c, pop:Math.random()<.18})); renderAll(); toast('手札を混ぜた', 700); };
+$('resetBtn').onclick=()=>reset(true);
+addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+})();
+</script>
+</body>
+</html>
