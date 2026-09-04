@@ -1,0 +1,65 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>VS ババ抜き β03</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08090c;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial}
+#app{position:relative;width:100vw;height:100vh;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none}
+.top{position:absolute;z-index:10;left:14px;right:14px;top:10px;display:flex;justify-content:space-between;pointer-events:none}.title{font-weight:1000;font-size:20px;text-shadow:0 3px 12px #000}.title small{font-size:10px;opacity:.6}
+.hud{display:flex;gap:7px}.pill{padding:8px 11px;border-radius:999px;background:rgba(7,8,11,.75);border:1px solid #ffffff20;font-size:11px;font-weight:900;backdrop-filter:blur(10px)}
+.controls{position:absolute;z-index:15;left:10px;right:10px;bottom:8px;display:flex;justify-content:center;gap:8px}.btn{border:1px solid #ffffff25;background:rgba(7,8,11,.84);color:#fff;border-radius:13px;padding:10px 13px;font-weight:1000}.btn.main{background:linear-gradient(#ff6679,#d92d45)}.btn:disabled{opacity:.35}
+.toast,.prompt{position:absolute;z-index:16;left:50%;transform:translateX(-50%);background:rgba(7,8,11,.86);border:1px solid #ffffff22;border-radius:15px;padding:11px 16px;font-weight:1000;backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:.2s}.toast{top:48%}.prompt{top:27%}.toast.on,.prompt.on{opacity:1}
+.overlay{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#4b3427,#07080b 70%)}.panel{width:min(720px,92vw);padding:28px;text-align:center;border-radius:28px;background:#101116e8;border:1px solid #ffffff20;box-shadow:0 25px 80px #0009}.panel h1{margin:0;font-size:clamp(38px,6vw,66px)}.panel p{opacity:.7;font-weight:800}.start{border:0;border-radius:16px;padding:14px 28px;background:linear-gradient(#ff6679,#d92d45);color:#fff;font-size:18px;font-weight:1000}.note{font-size:11px;opacity:.5;margin-top:12px}
+.portrait{display:none;position:absolute;inset:0;z-index:99;background:#0a0b0e;align-items:center;justify-content:center;text-align:center;font-weight:1000;line-height:1.7}@media(orientation:portrait){.portrait{display:flex}}
+</style></head><body><div id="app">
+<div class="portrait">iPhoneを横向きにしてください。<br>VS ババ抜き β03は横画面専用です。</div>
+<div class="top"><div class="title">VS ババ抜き <small>β03 REAL 3D</small></div><div class="hud"><div class="pill" id="turn">準備中</div><div class="pill" id="count">あなた 0 / 相手 0</div></div></div>
+<div class="prompt" id="prompt">相手の手札から1枚タップ</div><div class="toast" id="toast"></div>
+<div class="controls"><button class="btn main" id="deal">カードを配る</button><button class="btn" id="draw" disabled>相手から引く</button><button class="btn" id="mix" disabled>手札を混ぜる</button><button class="btn" id="reset">リセット</button></div>
+<div class="overlay" id="overlay"><div class="panel"><h1>VS ババ抜き</h1><p>本物の3D空間のテーブルで、向かい合ってカードを引く。</p><button class="start" id="start">β03を試す</button><div class="note">Three.js / WebGLによる3D試作版。近距離通信・広告はまだ未実装。</div></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),app=$('app'),turn=$('turn'),count=$('count'),toast=$('toast'),prompt=$('prompt');
+let tt;function say(t,ms=900){toast.textContent=t;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>toast.classList.remove('on'),ms)}
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x17181d);scene.fog=new THREE.Fog(0x17181d,13,28);
+const cam=new THREE.PerspectiveCamera(44,innerWidth/innerHeight,.1,100);cam.position.set(0,6.4,10.5);
+const ren=new THREE.WebGLRenderer({antialias:true});ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.shadowMap.enabled=true;ren.outputEncoding=THREE.sRGBEncoding;app.insertBefore(ren.domElement,app.firstChild);
+scene.add(new THREE.HemisphereLight(0xdbe4ff,0x2c1c13,.75));let spot=new THREE.SpotLight(0xffd2a6,3.4,30,Math.PI/4,.45,1);spot.position.set(0,10,2);spot.castShadow=true;scene.add(spot);let fill=new THREE.PointLight(0x7da6ff,.6,18);fill.position.set(-5,4,5);scene.add(fill);
+let floor=new THREE.Mesh(new THREE.PlaneGeometry(28,28),new THREE.MeshStandardMaterial({color:0x34251f,roughness:.9}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+let wall=new THREE.Mesh(new THREE.PlaneGeometry(28,12),new THREE.MeshStandardMaterial({color:0x2b2c32,roughness:.95}));wall.position.set(0,6,-10);scene.add(wall);
+let wood=new THREE.MeshStandardMaterial({color:0x5d3522,roughness:.72}),dark=new THREE.MeshStandardMaterial({color:0x392117,roughness:.8});
+let topm=new THREE.Mesh(new THREE.BoxGeometry(9.5,.48,6),wood);topm.position.y=2.05;topm.castShadow=true;topm.receiveShadow=true;scene.add(topm);
+let edge=new THREE.Mesh(new THREE.BoxGeometry(9.7,.3,6.2),dark);edge.position.y=1.76;scene.add(edge);
+for(let x of[-4.1,4.1])for(let z of[-2.4,2.4]){let l=new THREE.Mesh(new THREE.BoxGeometry(.42,2.1,.42),dark);l.position.set(x,.8,z);l.castShadow=true;scene.add(l)}
+function chair(z,r){let g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color:0x2b211d,roughness:.9}),s=new THREE.Mesh(new THREE.BoxGeometry(2,.25,1.7),m),b=new THREE.Mesh(new THREE.BoxGeometry(2,2,.2),m);s.position.y=1.15;b.position.set(0,2,-.75);g.add(s,b);g.position.z=z;g.rotation.y=r;scene.add(g)}chair(6.5,0);chair(-6.5,Math.PI);
+let deck=new THREE.Mesh(new THREE.BoxGeometry(.95,.25,1.35),new THREE.MeshStandardMaterial({color:0x203e72,roughness:.55}));deck.position.set(0,2.42,0);deck.castShadow=true;scene.add(deck);
+
+const SU=['♠','♥','♦','♣'],RA=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+function uid(){return Math.random().toString(36).slice(2)+Date.now()}function shuffle(a){a=[...a];for(let i=a.length-1;i;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function makeDeck(){let d=[];for(let s of SU)for(let r of RA)d.push({id:uid(),rank:r,suit:s,joker:0,pop:0});d.push({id:uid(),rank:'JOKER',suit:'★',joker:1,pop:0});return shuffle(d)}
+function tex(card,back=false){let c=document.createElement('canvas');c.width=256;c.height=360;let x=c.getContext('2d');if(back){let g=x.createLinearGradient(0,0,256,360);g.addColorStop(0,'#14254d');g.addColorStop(1,'#28528c');x.fillStyle=g;x.fillRect(0,0,256,360);x.strokeStyle='#eee2cf';x.lineWidth=12;x.strokeRect(8,8,240,344);x.fillStyle='#ffffffa0';x.font='bold 70px Arial';x.textAlign='center';x.fillText('VS',128,205)}else{x.fillStyle='#f7f4ec';x.fillRect(0,0,256,360);let red=card.suit==='♥'||card.suit==='♦'||card.joker;x.fillStyle=red?'#c51f31':'#151515';x.font='bold 45px Arial';x.textAlign='left';x.fillText(card.joker?'JOKER':card.rank,18,55);x.font='48px Arial';x.fillText(card.joker?'★':card.suit,18,108);x.font='bold 105px Arial';x.textAlign='center';x.fillText(card.joker?'🃏':card.suit,128,235)}return new THREE.CanvasTexture(c)}
+const backTex=tex({},true),geo=new THREE.BoxGeometry(.82,.055,1.18);
+function meshCard(c,front,owner){let mats=[0,0,0,0,0,0].map(()=>new THREE.MeshStandardMaterial({color:0xe8e3d8}));mats[2]=new THREE.MeshStandardMaterial({map:front?tex(c):backTex,roughness:.6});mats[3]=new THREE.MeshStandardMaterial({map:backTex,roughness:.6});let m=new THREE.Mesh(geo,mats);m.castShadow=true;m.userData={card:c,owner};return m}
+let me=[],opp=[],trash=[],mm=[],om=[],dm=[],drawMode=0,drag=null,startX=0;
+function clear(a){a.forEach(m=>scene.remove(m));a.length=0}
+function layout(a,arr,owner){clear(arr);let n=a.length;if(!n)return;let span=Math.min(5.8,Math.max(2.2,n*.38));a.forEach((c,i)=>{let t=n===1?.5:i/(n-1),x=(t-.5)*span,curve=Math.abs(t-.5)*2,m=meshCard(c,owner==='me',owner);if(owner==='me'){m.position.set(x,3+(c.pop?.42:0)-curve*.08,4.55-curve*.3);m.rotation.set(-.17,(t-.5)*-.42,0)}else{m.position.set(x,3+(c.pop?.42:0)-curve*.08,-4.45+curve*.3);m.rotation.set(-.17,Math.PI+(t-.5)*.42,0)}m.userData.index=i;scene.add(m);arr.push(m)})}
+function render(){layout(me,mm,'me');layout(opp,om,'opp');renderTrash();count.textContent='あなた '+me.length+' / 相手 '+opp.length}
+function renderTrash(){clear(dm);trash.slice(-28).forEach((c,i)=>{let m=meshCard(c,true,'trash');m.position.set((((i*41)%100)-50)/40,2.34+i*.006,(((i*67)%100)-50)/55);m.rotation.y=((((i*37)%100)-50)/180);scene.add(m);dm.push(m)})}
+function pairs(a,who){let g={};a.forEach(c=>{if(!c.joker)(g[c.rank]??=[]).push(c)});let ids=new Set,rm=[];Object.values(g).forEach(v=>{let n=Math.floor(v.length/2)*2;for(let i=0;i<n;i++){ids.add(v[i].id);rm.push(v[i])}});if(!rm.length)return a;rm.forEach((c,i)=>setTimeout(()=>{trash.push(c);renderTrash()},i*90));setTimeout(()=>say(who+'：'+rm.length/2+'ペアをテーブルへ',1000),100);return a.filter(c=>!ids.has(c.id))}
+let targetPos=new THREE.Vector3(0,6.4,10.5),targetLook=new THREE.Vector3(0,2.1,0),look=targetLook.clone();
+function cameraMode(d){targetPos.set(0,d?5.2:6.4,d?5.6:10.5);targetLook.set(0,d?3:2.1,d?-4.4:0)}
+function loop(){requestAnimationFrame(loop);cam.position.lerp(targetPos,.08);look.lerp(targetLook,.08);cam.lookAt(look);ren.render(scene,cam)}loop();
+async function deal(){reset(false);turn.textContent='配札中';$('deal').disabled=true;let d=makeDeck(),side=0;for(let i=0;i<d.length;i++){(side?opp:me).push(d[i]);side=1-side;if(i%4===0)render();await new Promise(r=>setTimeout(r,28))}render();await new Promise(r=>setTimeout(r,300));me=pairs(me,'あなた');opp=pairs(opp,'相手');setTimeout(()=>{render();$('draw').disabled=false;$('mix').disabled=false;turn.textContent='あなたの番';say('ゲームスタート！',1100)},900)}
+function beginDraw(){if(!opp.length)return;drawMode=1;cameraMode(1);prompt.classList.add('on');$('draw').disabled=true;$('mix').disabled=true;turn.textContent='相手から1枚引く'}
+function backView(){drawMode=0;cameraMode(0);prompt.classList.remove('on')}
+function take(i){if(!drawMode||i<0||i>=opp.length)return;let c=opp.splice(i,1)[0];backView();me.push(c);render();say((c.joker?'JOKER':c.rank+c.suit)+' を引いた',750);setTimeout(()=>{me=pairs(me,'あなた');render();if(end())return;setTimeout(()=>{let j=Math.floor(Math.random()*me.length),c=me.splice(j,1)[0];opp.push(c);opp=pairs(opp,'相手');render();say('相手があなたの手札から1枚引いた',850);setTimeout(()=>{if(!end()){$('draw').disabled=false;$('mix').disabled=false;turn.textContent='あなたの番'}},800)},850)},650)}
+function end(){if(me.length===0){say('あなたのあがり！',1700);turn.textContent='あなたのあがり';return 1}if(opp.length===0){say('相手のあがり！',1700);turn.textContent='相手のあがり';return 1}return 0}
+const ray=new THREE.Raycaster(),p=new THREE.Vector2();
+function point(e){let r=ren.domElement.getBoundingClientRect();p.x=((e.clientX-r.left)/r.width)*2-1;p.y=-((e.clientY-r.top)/r.height)*2+1;ray.setFromCamera(p,cam)}
+ren.domElement.addEventListener('pointerdown',e=>{point(e);if(drawMode){let h=ray.intersectObjects(om)[0];if(h){take(h.object.userData.index);return}}let h=ray.intersectObjects(mm)[0];if(h){drag=h.object;startX=e.clientX;ren.domElement.setPointerCapture(e.pointerId)}})
+ren.domElement.addEventListener('pointermove',e=>{if(drag)drag.position.x+=(e.clientX-startX)*.003,startX=e.clientX})
+ren.domElement.addEventListener('pointerup',e=>{if(!drag)return;let cid=drag.userData.card.id,from=me.findIndex(c=>c.id===cid);if(Math.abs(drag.position.x-(mm[from]?.position.x||0))<.12)me[from].pop=!me[from].pop;else{let to=Math.min(me.length-1,Math.max(0,Math.floor(((drag.position.x+3)/6)*me.length))),c=me.splice(from,1)[0];me.splice(to,0,c)}drag=null;render()})
+function reset(show=true){me=[];opp=[];trash=[];drawMode=0;clear(mm);clear(om);clear(dm);cameraMode(0);prompt.classList.remove('on');$('deal').disabled=false;$('draw').disabled=true;$('mix').disabled=true;turn.textContent='準備中';count.textContent='あなた 0 / 相手 0';if(show)say('リセットしました',650)}
+$('start').onclick=()=>{$('overlay').style.display='none';say('まず「カードを配る」を押してください',1000)};$('deal').onclick=deal;$('draw').onclick=beginDraw;$('mix').onclick=()=>{me=shuffle(me);render();say('手札を混ぜた',650)};$('reset').onclick=()=>reset(true);
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight)})
+</script></body></html>

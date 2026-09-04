@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VS ババ抜き β版一覧</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:linear-gradient(160deg,#15171d,#090a0d 68%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+body{display:flex;align-items:center;justify-content:center;padding:28px}
+.wrap{width:min(680px,100%)}
+h1{margin:0 0 8px;font-size:clamp(34px,7vw,60px);font-weight:1000}
+.sub{opacity:.68;margin-bottom:28px;font-weight:700;line-height:1.6}
+.card{display:block;text-decoration:none;color:#fff;padding:20px 18px;margin:12px 0;border-radius:20px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.11);box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.card.latest{background:linear-gradient(180deg,rgba(255,87,111,.23),rgba(255,87,111,.11));border-color:rgba(255,120,140,.42)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.name{font-size:22px;font-weight:1000}
+.badge{padding:6px 10px;border-radius:999px;background:#ff5b70;font-size:11px;font-weight:1000}
+.desc{margin-top:8px;opacity:.62;font-size:13px;line-height:1.5}
+.note{margin-top:24px;padding:15px 16px;border-radius:16px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);font-size:12px;line-height:1.7;opacity:.68}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VS ババ抜き</h1>
+  <div class="sub">β版を選んでプレイ</div>
+
+  <a class="card latest" href="VS_Babanuki_beta03.html">
+    <div class="row">
+      <div class="name">β03</div>
+      <div class="badge">最新版</div>
+    </div>
+    <div class="desc">Three.js / WebGLを使ったリアル3D空間版</div>
+  </a>
+
+  <div class="note">
+    今後は新しいβ版ファイルを追加するだけでOK。<br>
+    例：VS_Babanuki_beta04.html / beta05.html …<br>
+    この index.html はβ版選択画面として固定して使います。
+  </div>
+</div>
+</body>
+</html>
