@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>VS ババ抜き β08 HDRI REAL TABLE</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090a0d;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+#app{position:relative;width:100vw;height:100vh;overflow:hidden;background:#090a0d}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.top{position:absolute;z-index:20;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+.brand{font-size:clamp(18px,2vw,26px);font-weight:1000;text-shadow:0 3px 14px rgba(0,0,0,.72)}
+.brand small{font-size:.5em;opacity:.6;margin-left:8px}
+.hud{display:flex;gap:8px}.pill{padding:8px 11px;border-radius:999px;background:rgba(7,8,11,.68);border:1px solid rgba(255,255,255,.14);font-size:11px;font-weight:900;backdrop-filter:blur(12px)}
+.controls{position:absolute;z-index:21;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:7px;flex-wrap:wrap;pointer-events:none}
+.btn{pointer-events:auto;border:1px solid rgba(255,255,255,.14);background:rgba(7,8,11,.80);color:#fff;border-radius:13px;padding:10px 13px;font-size:12px;font-weight:1000;backdrop-filter:blur(13px);box-shadow:0 7px 20px rgba(0,0,0,.28)}
+.btn.main{background:linear-gradient(180deg,#ff6478,#d92d47)}
+.btn.alt{background:linear-gradient(180deg,#5c88fa,#3655d3)}
+.toast{position:absolute;z-index:22;left:50%;top:48%;transform:translate(-50%,-50%);padding:10px 15px;border-radius:14px;background:rgba(7,8,11,.84);border:1px solid rgba(255,255,255,.14);font-size:12px;font-weight:1000;backdrop-filter:blur(14px);opacity:0;transition:.2s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,-56%)}
+.loading{position:absolute;z-index:19;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;font-weight:900;padding:10px 14px;border-radius:999px;background:rgba(7,8,11,.72);border:1px solid rgba(255,255,255,.13);backdrop-filter:blur(10px)}
+.loading.hide{display:none}
+.credit{position:absolute;z-index:20;right:max(10px,env(safe-area-inset-right));bottom:56px;font-size:9px;opacity:.45;text-shadow:0 2px 6px #000;pointer-events:none}
+.overlay{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(circle at 50% 35%,rgba(56,44,37,.80),rgba(6,7,10,.95) 72%)}
+.panel{width:min(760px,94vw);padding:30px 26px;border-radius:28px;background:rgba(12,13,17,.90);border:1px solid rgba(255,255,255,.14);box-shadow:0 30px 90px rgba(0,0,0,.58);text-align:center}
+.panel h1{margin:0;font-size:clamp(38px,6vw,66px);font-weight:1000}.sub{margin:8px 0 20px;opacity:.74;font-weight:800;line-height:1.6}
+.start{border:0;border-radius:16px;padding:14px 28px;background:linear-gradient(180deg,#ff6478,#d92d47);color:#fff;font-size:18px;font-weight:1000}
+.note{margin-top:12px;font-size:11px;opacity:.55;line-height:1.6}
+.portrait{display:none;position:absolute;inset:0;z-index:99;background:#0a0b0f;align-items:center;justify-content:center;text-align:center;padding:28px;font-weight:1000;line-height:1.7}
+@media(orientation:portrait){.portrait{display:flex}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="portrait">iPhoneを横向きにしてください。<br>β08は横画面専用です。</div>
+  <div class="top">
+    <div class="brand">VS ババ抜き <small>β08 HDRI REAL TABLE</small></div>
+    <div class="hud"><div class="pill">360°実写HDRI</div><div class="pill" id="viewPill">席視点</div></div>
+  </div>
+  <div class="loading" id="loading">ホテル空間を読み込み中…</div>
+  <div class="toast" id="toast"></div>
+  <div class="credit">HDRI / Wood PBR: Poly Haven (CC0)</div>
+
+  <div class="controls">
+    <button class="btn main" id="seatBtn">席視点</button>
+    <button class="btn alt" id="nearBtn">円卓に寄る</button>
+    <button class="btn" id="leftBtn">背景 ←</button>
+    <button class="btn" id="rightBtn">背景 →</button>
+    <button class="btn" id="lightBtn">照明比較</button>
+    <button class="btn" id="resetBtn">リセット</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h1>VS ババ抜き</h1>
+      <div class="sub">β07の「写真の前にCGを置いただけ」をやめる。<br>360°実写ホテル空間の中に、実寸感のある円卓を置くβ08。</div>
+      <button class="start" id="startBtn">β08を確認する</button>
+      <div class="note">今回はカードを外し、背景・遠近感・接地・円卓だけを確認します。</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const app=$('app'),toastEl=$('toast'),viewPill=$('viewPill'),loading=$('loading');
+let tt;
+function toast(t,ms=950){toastEl.textContent=t;toastEl.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('on'),ms)}
+
+const HOTEL='https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/hotel_room.jpg';
+const WOOD_D='https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_wood/dark_wood_diff_1k.jpg';
+const WOOD_N='https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_wood/dark_wood_nor_gl_1k.jpg';
+const WOOD_R='https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_wood/dark_wood_rough_1k.jpg';
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.05,80);
+camera.position.set(0,1.58,3.85);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=.88;
+renderer.physicallyCorrectLights=true;
+app.insertBefore(renderer.domElement,document.querySelector('.portrait'));
+
+const loader=new THREE.TextureLoader();
+loader.crossOrigin='anonymous';
+
+let sky=null,skyYaw=1.08,envReady=false;
+const pmrem=new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+
+loader.load(HOTEL,tex=>{
+  tex.encoding=THREE.sRGBEncoding;
+  tex.mapping=THREE.EquirectangularReflectionMapping;
+
+  const skyMat=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,toneMapped:false});
+  sky=new THREE.Mesh(new THREE.SphereGeometry(32,64,32),skyMat);
+  sky.scale.x=-1;
+  sky.rotation.y=skyYaw;
+  scene.add(sky);
+
+  const envRT=pmrem.fromEquirectangular(tex);
+  scene.environment=envRT.texture;
+  envReady=true;
+  loading.classList.add('hide');
+},undefined,()=>{
+  loading.textContent='背景読み込みに失敗。再読み込みしてください';
+});
+
+let woodMap=null,normalMap=null,roughMap=null;
+function setupTex(t,isColor=false){
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(1.6,1.6);
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  if(isColor)t.encoding=THREE.sRGBEncoding;
+  return t;
+}
+loader.load(WOOD_D,t=>{woodMap=setupTex(t,true);applyWood()});
+loader.load(WOOD_N,t=>{normalMap=setupTex(t,false);applyWood()});
+loader.load(WOOD_R,t=>{roughMap=setupTex(t,false);applyWood()});
+
+const woodMat=new THREE.MeshPhysicalMaterial({
+  color:0x5a3627,
+  roughness:.44,
+  metalness:.02,
+  clearcoat:.22,
+  clearcoatRoughness:.42
+});
+function applyWood(){
+  if(woodMap)woodMat.map=woodMap;
+  if(normalMap){woodMat.normalMap=normalMap;woodMat.normalScale.set(.34,.34)}
+  if(roughMap)woodMat.roughnessMap=roughMap;
+  woodMat.needsUpdate=true;
+}
+
+const darkWood=new THREE.MeshPhysicalMaterial({color:0x2f1b14,roughness:.55,clearcoat:.12,clearcoatRoughness:.5});
+const brass=new THREE.MeshPhysicalMaterial({color:0x8c6a42,metalness:.92,roughness:.26,clearcoat:.15});
+const felt=new THREE.MeshStandardMaterial({color:0x203a31,roughness:.98,metalness:0});
+
+const hemi=new THREE.HemisphereLight(0xe7ded5,0x2b1c17,.22);
+scene.add(hemi);
+
+const key=new THREE.DirectionalLight(0xffdfc2,1.05);
+key.position.set(-3.2,5.8,3.3);
+key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-4;key.shadow.camera.right=4;key.shadow.camera.top=4;key.shadow.camera.bottom=-4;
+key.shadow.camera.near=.1;key.shadow.camera.far=15;
+key.shadow.bias=-.0002;
+scene.add(key);
+
+const cool=new THREE.PointLight(0xa7c4ff,.22,8,2);
+cool.position.set(2.8,2.8,2.5);
+scene.add(cool);
+
+const shadowFloor=new THREE.Mesh(
+  new THREE.PlaneGeometry(12,12),
+  new THREE.ShadowMaterial({color:0x000000,opacity:.32})
+);
+shadowFloor.rotation.x=-Math.PI/2;
+shadowFloor.position.y=.002;
+shadowFloor.receiveShadow=true;
+scene.add(shadowFloor);
+
+const table=new THREE.Group();
+scene.add(table);
+
+const baseFoot=new THREE.Mesh(new THREE.CylinderGeometry(.62,.72,.075,64),darkWood);
+baseFoot.position.y=.045;baseFoot.castShadow=true;baseFoot.receiveShadow=true;table.add(baseFoot);
+
+const footRing=new THREE.Mesh(new THREE.TorusGeometry(.58,.045,18,72),brass);
+footRing.rotation.x=Math.PI/2;footRing.position.y=.09;table.add(footRing);
+
+const stem=new THREE.Mesh(new THREE.CylinderGeometry(.16,.25,.62,48),darkWood);
+stem.position.y=.39;stem.castShadow=true;stem.receiveShadow=true;table.add(stem);
+
+const shoulder=new THREE.Mesh(new THREE.CylinderGeometry(.36,.22,.22,48),woodMat);
+shoulder.position.y=.78;shoulder.castShadow=true;table.add(shoulder);
+
+const under=new THREE.Mesh(new THREE.CylinderGeometry(1.59,1.64,.11,96),darkWood);
+under.position.y=.93;under.castShadow=true;under.receiveShadow=true;table.add(under);
+
+const slab=new THREE.Mesh(new THREE.CylinderGeometry(1.55,1.60,.16,96),woodMat);
+slab.position.y=1.065;slab.castShadow=true;slab.receiveShadow=true;table.add(slab);
+
+const feltInset=new THREE.Mesh(new THREE.CylinderGeometry(1.35,1.35,.024,96),felt);
+feltInset.position.y=1.158;feltInset.receiveShadow=true;table.add(feltInset);
+
+const brassRing=new THREE.Mesh(new THREE.TorusGeometry(1.395,.033,18,120),brass);
+brassRing.rotation.x=Math.PI/2;brassRing.position.y=1.174;table.add(brassRing);
+
+const contact=new THREE.Mesh(
+  new THREE.CircleGeometry(.74,64),
+  new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.10,depthWrite:false})
+);
+contact.rotation.x=-Math.PI/2;contact.position.y=.004;contact.scale.set(1.55,.72,1);scene.add(contact);
+
+const seatPos=new THREE.Vector3(0,1.58,3.85);
+const seatLook=new THREE.Vector3(0,.88,.05);
+const nearPos=new THREE.Vector3(0,1.48,2.72);
+const nearLook=new THREE.Vector3(0,1.02,-.15);
+let targetPos=seatPos.clone(),targetLook=seatLook.clone(),look=seatLook.clone(),near=false;
+
+function setView(isNear){
+  near=isNear;
+  targetPos.copy(isNear?nearPos:seatPos);
+  targetLook.copy(isNear?nearLook:seatLook);
+  viewPill.textContent=isNear?'円卓に寄る':'席視点';
+  toast(isNear?'円卓との距離を確認':'人が座った目線');
+}
+function rotateBg(dir){
+  skyYaw+=dir*.22;
+  if(sky)sky.rotation.y=skyYaw;
+  toast(dir<0?'背景を左へ回転':'背景を右へ回転');
+}
+let lightMode=0;
+function toggleLight(){
+  lightMode=(lightMode+1)%2;
+  if(lightMode===0){renderer.toneMappingExposure=.88;key.intensity=1.05;hemi.intensity=.22;toast('標準照明')}
+  else{renderer.toneMappingExposure=.76;key.intensity=.72;hemi.intensity=.16;toast('暗め照明')}
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  camera.position.lerp(targetPos,.065);
+  look.lerp(targetLook,.065);
+  camera.lookAt(look);
+  renderer.render(scene,camera);
+}
+animate();
+
+$('startBtn').onclick=()=>{$('overlay').style.display='none';toast('まず円卓が「床に立って見えるか」を見てください',1500)};
+$('seatBtn').onclick=()=>setView(false);
+$('nearBtn').onclick=()=>setView(true);
+$('leftBtn').onclick=()=>rotateBg(-1);
+$('rightBtn').onclick=()=>rotateBg(1);
+$('lightBtn').onclick=toggleLight;
+$('resetBtn').onclick=()=>{
+  skyYaw=1.08;if(sky)sky.rotation.y=skyYaw;
+  lightMode=0;renderer.toneMappingExposure=.88;key.intensity=1.05;hemi.intensity=.22;
+  setView(false);toast('リセットしました');
+};
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+})();
+</script>
+</body>
+</html>
